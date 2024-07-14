@@ -33,7 +33,7 @@ uint64_t mapAddress (uint64_t virtualAddress)
   for (int i = TABLE_DEPTH; i >= 0; i--)
   {
     uint64_t pageIndex = (virtualAddress >> (OFFSET_WIDTH * i)) & offset_mask;
-    if(i == 0) return address * PAGE_SIZE + pageIndex;
+    if (i == 0) return address * PAGE_SIZE + pageIndex;
     PMread (address * PAGE_SIZE + pageIndex, address);
     if (address == 0) // Page fault
     {
@@ -48,13 +48,42 @@ uint64_t mapAddress (uint64_t virtualAddress)
 
 uint64_t findFrame (uint64_t pageIndex)
 {
-  static uint64_t frameIndex = 0;
-  if (frameIndex == NUM_FRAMES)
+  uint64_t maxFrameIndex = 0;
+  const frameIndex = dfs (0, 0, &maxFrameIndex);
+  if (frameIndex == -1)
   {
-    frameIndex = 0;
+    if (maxFrameIndex + 1 < NUM_PAGES)
+    {
+      frameIndex = maxFrameIndex
+    } else {
+        for(uint64_t i = 0; i < NUM_FRAMES; i++)
+        {
+
+//          PMevict (i, i);
+        }
+    }
   }
-  frameIndex++;
-  PMrestore (frame, pageIndex)
+  PMrestore (frameIndex, pageIndex)
   return frameIndex;
 }
 
+uint64_t dfs (uint64_t i, int depth, uint64_t *maxFrameIndex)
+{
+  if (depth >= TABLES_DEPTH) return -1;
+  for (uint64_t j = 0; j < PAGE_SIZE; j++)
+  {
+    if (i * PAGE_SIZE + j > &maxFrameIndex) *maxFrameIndex = i * PAGE_SIZE + j;
+    word_t value;
+    PMread (i * PAGE_SIZE + j, value);
+    if (value != 0)
+    {
+      const nextAddress = dfs (value, depth + 1);
+      if (nextAddress != -1)
+      {
+        PMwrite (i * PAGE_SIZE + j, 0);
+        return nextAddress;
+      }
+    }
+  }
+  return i * PAGE_SIZE;;
+}
