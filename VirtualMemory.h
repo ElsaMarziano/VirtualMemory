@@ -2,6 +2,9 @@
 
 #include "MemoryConstants.h"
 
+#define SUCCESS 1
+#define FAILURE 0
+
 /*
  * Initialize the virtual memory.
  */
