@@ -1,4 +1,3 @@
-#pragma once
 #include "MemoryConstants.h"
 
 

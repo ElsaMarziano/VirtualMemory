@@ -3,40 +3,39 @@
 #include "PhysicalMemory.h"
 #include <cstdint>
 
-
-uint64_t mapAddress (uint64_t virtualAddress)
+uint64_t dfs (uint64_t i, int depth, uint64_t *maxFrameIndex, uint64_t
+previousFrame, uint64_t fatherFrameIndex)
 {
-  auto offset_mask = (1 << OFFSET_WIDTH) - 1;
-  word_t address = 0;
-
-  for (int i = TABLE_DEPTH; i >= 0; i--)
+  word_t currentFrame = 0;
+  if (depth >= TABLES_DEPTH) return -1;
+  for (uint64_t j = 0; j < PAGE_SIZE; j++)
   {
-    uint64_t current_offset = (virtualAddress >> (OFFSET_WIDTH * i)) &
-                              offset_mask;
-    if (i == 0) return address * PAGE_SIZE + current_offset;
-    PMread (address * PAGE_SIZE + current_offset, address);
-    if (address == 0) // Page fault
+    PMread (i * PAGE_SIZE + j, &currentFrame);
+    if (currentFrame > *maxFrameIndex)
     {
-      auto f1 = findFrame (address * PAGE_SIZE + current_offset, address);
-      if (i > 1)
+      *maxFrameIndex = currentFrame;
+    }
+    if (currentFrame != 0 || i * PAGE_SIZE == previousFrame)
+    {
+      auto nextAddress = dfs (currentFrame, depth + 1, maxFrameIndex,
+                              previousFrame, i * PAGE_SIZE + j);
+      if (nextAddress != (uint64_t) -1)
       {
-        for (int j = 0; j < NUM_PAGES; j++)
-        {
-          PMWrite (f1 + j, 0);
-        }
+        return nextAddress;
       }
-      PMwrite (address * PAGE_SIZE + current_offset, f1);
-      address = f1;
+      else return -1;
     }
   }
+  PMwrite (fatherFrameIndex, 0);
+  return i * PAGE_SIZE;
 }
 
-uint64_t findFrame (uint64_t pageIndex, uint64_t parentFrameIndex
+uint64_t findFrame (uint64_t pageIndex, uint64_t parentFrameIndex)
 {
   uint64_t maxFrameIndex = 0;
 //  TODO Link frameIndex to parent
-  auto frameIndex = dfs (0, 0, &maxFrameIndex, parentFrameIndex);
-  if (frameIndex == -1)
+  auto frameIndex = dfs (0, 0, &maxFrameIndex, parentFrameIndex, 0);
+  if (frameIndex == (uint64_t) -1)
   {
     if (maxFrameIndex + 1 < NUM_PAGES)
     {
@@ -55,35 +54,36 @@ uint64_t findFrame (uint64_t pageIndex, uint64_t parentFrameIndex
       }
     }
   }
-  PMrestore (frameIndex, pageIndex)
+  PMrestore (frameIndex, pageIndex);
   return frameIndex;
 }
 
-uint64_t dfs (uint64_t i, int depth, uint64_t *maxFrameIndex, uint64_t
-previousFrame, uint64_t fatherFrameIndex)
+uint64_t mapAddress (uint64_t virtualAddress)
 {
-  word_t currentFrame = 0;
-  if (depth >= TABLES_DEPTH) return -1;
-  for (uint64_t j = 0; j < PAGE_SIZE; j++)
+  auto offset_mask = (1 << OFFSET_WIDTH) - 1;
+  word_t address = 0;
+
+  for (int i = TABLES_DEPTH; i >= 0; i--)
   {
-    PMread (i * PAGE_SIZE + j, &currentFrame);
-    if (currentFrame > *maxFrameIndex)
+    uint64_t current_offset = (virtualAddress >> (OFFSET_WIDTH * i)) &
+                              offset_mask;
+    if (i == 0) return address * PAGE_SIZE + current_offset;
+    PMread (address * PAGE_SIZE + current_offset, &address);
+    if (address == 0) // Page fault
     {
-      *maxFrameIndex = currentFrame;
-    }
-    if (currentFrame != 0 || i * PAGE_SIZE == previousFrame)
-    {
-      auto nextAddress = dfs (currentFrame, depth + 1, maxFrameIndex,
-                               previousFrame, i * PAGE_SIZE + j);
-      if (nextAddress != -1)
+      auto f1 = findFrame (address * PAGE_SIZE + current_offset, address);
+      if (i > 1)
       {
-        return nextAddress;
+        for (int j = 0; j < NUM_PAGES; j++)
+        {
+          PMwrite (f1 + j, 0);
+        }
       }
-      else return -1;
+      PMwrite (address * PAGE_SIZE + current_offset, f1);
+      address = f1;
     }
   }
-  PMwrite (fatherFrameIndex, 0);
-  return i * PAGE_SIZE;
+  return address;
 }
 
 void VMinitialize ()
