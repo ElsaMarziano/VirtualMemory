@@ -1,0 +1,87 @@
+Index: VirtualMemory.cpp
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>#include VirtualMemory.h\r\n#include MemoryConstants.h\r\n#include PhysicalMemory.h\r\n\r\nvoid VMinitialize ()\r\n{\r\n  PMwrite (0, 0);\r\n//  Put root at 0\r\n//  for (uint64_t i = 1; i < NUM_FRAMES; i++) {\r\n//    PMwrite(i, 0);\r\n//  }\r\n}\r\n\r\nint VMread (uint64_t virtualAddress, word_t *value)\r\n{\r\n  uint64_t physicalAddress = mapAddress (virtualAddress);\r\n  PMread (physicalAddress, value);\r\n  return SUCCESS;\r\n}\r\n\r\nint VMwrite (uint64_t virtualAddress, word_t value)\r\n{\r\n  uint64_t physicalAddress = mapAddress (virtualAddress);\r\n  PMwrite (physicalAddress, value);\r\n  return SUCCESS;\r\n}\r\n\r\nuint64_t mapAddress (uint64_t virtualAddress)\r\n{\r\n  const offset_mask = (1 << OFFSET_WIDTH) - 1;\r\n  word_t address = 0;\r\n\r\n  for (int i = TABLE_DEPTH; i >= 0; i--)\r\n  {\r\n    uint64_t pageIndex = (virtualAddress >> (OFFSET_WIDTH * i)) & offset_mask;\r\n    if (i == 0) return address * PAGE_SIZE + pageIndex;\r\n    PMread (address * PAGE_SIZE + pageIndex, address);\r\n    if (address == 0) // Page fault\r\n    {\r\n      const f1 = findFrame (address * PAGE_SIZE + pageIndex);\r\n      if (i > 1) PMWrite (f1, 0); // ???\r\n      PMwrite (address * PAGE_SIZE + pageIndex, f1);\r\n      address = f1;\r\n    }\r\n  }\r\n  return address;\r\n}\r\n\r\nuint64_t findFrame (uint64_t pageIndex)\r\n{\r\n  uint64_t maxFrameIndex = 0;\r\n  const frameIndex = dfs (0, 0, &maxFrameIndex);\r\n  if (frameIndex == -1)\r\n  {\r\n    if (maxFrameIndex + 1 < NUM_PAGES)\r\n    {\r\n      frameIndex = maxFrameIndex\r\n    } else {\r\n        for(uint64_t i = 0; i < NUM_FRAMES; i++)\r\n        {\r\n\r\n//          PMevict (i, i);\r\n        }\r\n    }\r\n  }\r\n  PMrestore (frameIndex, pageIndex)\r\n  return frameIndex;\r\n}\r\n\r\nuint64_t dfs (uint64_t i, int depth, uint64_t *maxFrameIndex)\r\n{\r\n  if (depth >= TABLES_DEPTH) return -1;\r\n  for (uint64_t j = 0; j < PAGE_SIZE; j++)\r\n  {\r\n    if (i * PAGE_SIZE + j > &maxFrameIndex) *maxFrameIndex = i * PAGE_SIZE + j;\r\n    word_t value;\r\n    PMread (i * PAGE_SIZE + j, value);\r\n    if (value != 0)\r\n    {\r\n      const nextAddress = dfs (value, depth + 1);\r\n      if (nextAddress != -1)\r\n      {\r\n        PMwrite (i * PAGE_SIZE + j, 0);\r\n        return nextAddress;\r\n      }\r\n    }\r\n  }\r\n  return i * PAGE_SIZE;;\r\n}\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/VirtualMemory.cpp b/VirtualMemory.cpp
+--- a/VirtualMemory.cpp	(revision 3886eb0f7173845ce7c14f62b7304c8ca4c1932a)
++++ b/VirtualMemory.cpp	(date 1721042204707)
+@@ -13,8 +13,8 @@
+ 
+ int VMread (uint64_t virtualAddress, word_t *value)
+ {
+-  uint64_t physicalAddress = mapAddress (virtualAddress);
+-  PMread (physicalAddress, value);
++  uint64_t frameIndex = mapAddress (virtualAddress);
++  PMread (frameIndex, value);
+   return SUCCESS;
+ }
+ 
+@@ -72,7 +72,10 @@
+   if (depth >= TABLES_DEPTH) return -1;
+   for (uint64_t j = 0; j < PAGE_SIZE; j++)
+   {
+-    if (i * PAGE_SIZE + j > &maxFrameIndex) *maxFrameIndex = i * PAGE_SIZE + j;
++    if (i * PAGE_SIZE + j > *maxFrameIndex){
++        *maxFrameIndex = i * PAGE_SIZE + j;
++      }
++
+     word_t value;
+     PMread (i * PAGE_SIZE + j, value);
+     if (value != 0)
+@@ -85,5 +88,5 @@
+       }
+     }
+   }
+-  return i * PAGE_SIZE;;
++  return i * PAGE_SIZE;
+ }
+Index: .idea/.gitignore
+===================================================================
+diff --git a/.idea/.gitignore b/.idea/.gitignore
+deleted file mode 100644
+--- a/.idea/.gitignore	(revision 3886eb0f7173845ce7c14f62b7304c8ca4c1932a)
++++ /dev/null	(revision 3886eb0f7173845ce7c14f62b7304c8ca4c1932a)
+@@ -1,8 +0,0 @@
+-# Default ignored files
+-/shelf/
+-/workspace.xml
+-# Editor-based HTTP Client requests
+-/httpRequests/
+-# Datasource local storage ignored files
+-/dataSources/
+-/dataSources.local.xml
+Index: .idea/ex4.iml
+===================================================================
+diff --git a/.idea/ex4.iml b/.idea/ex4.iml
+deleted file mode 100644
+--- a/.idea/ex4.iml	(revision 3886eb0f7173845ce7c14f62b7304c8ca4c1932a)
++++ /dev/null	(revision 3886eb0f7173845ce7c14f62b7304c8ca4c1932a)
+@@ -1,8 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<module type="CPP_MODULE" version="4">
+-  <component name="NewModuleRootManager">
+-    <content url="file://$MODULE_DIR$" />
+-    <orderEntry type="inheritedJdk" />
+-    <orderEntry type="sourceFolder" forTests="false" />
+-  </component>
+-</module>
+\ No newline at end of file
+Index: .idea/modules.xml
+===================================================================
+diff --git a/.idea/modules.xml b/.idea/modules.xml
+deleted file mode 100644
+--- a/.idea/modules.xml	(revision 3886eb0f7173845ce7c14f62b7304c8ca4c1932a)
++++ /dev/null	(revision 3886eb0f7173845ce7c14f62b7304c8ca4c1932a)
+@@ -1,8 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<project version="4">
+-  <component name="ProjectModuleManager">
+-    <modules>
+-      <module fileurl="file://$PROJECT_DIR$/.idea/ex4.iml" filepath="$PROJECT_DIR$/.idea/ex4.iml" />
+-    </modules>
+-  </component>
+-</project>
+\ No newline at end of file
