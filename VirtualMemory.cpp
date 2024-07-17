@@ -148,11 +148,13 @@ previousFrame, word_t fatherFrameIndex, uint64_t page, uint64_t swapIn,
     return i;
 }
 
-void VMinitialize() {
-    for (int i = 0; i < PAGE_SIZE; i++) {
-        PMwrite(i, 0);
+void VMinitialize ()
+{
+  for (int i = 0; i < NUM_PAGES; i++)
+  {
+    PMwrite (i, 0);
 
-    }
+  }
 }
 
 int VMread(uint64_t virtualAddress, word_t *value) {
