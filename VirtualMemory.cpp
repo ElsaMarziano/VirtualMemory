@@ -1,5 +1,5 @@
 #include "VirtualMemory.h"
-#include "MemoryConstants.h"
+
 #include "PhysicalMemory.h"
 #include <algorithm>
 #include <cmath>
@@ -13,6 +13,25 @@ uint64_t mapAddress(uint64_t virtualAddress);
 
 word_t findFrame(uint64_t pageIndex, word_t prev, word_t parentFrameIndex, uint64_t
 swapIn);
+
+uint64_t calculatePageIndex(uint64_t virtualAddress) {
+    uint64_t page = 0;
+    for (int i = TABLES_DEPTH; i > 0; --i) {
+
+        int bits = OFFSET_WIDTH;
+        if (i == TABLES_DEPTH && START_OFFSET != 0) {
+            bits = START_OFFSET;
+        } else {
+            bits = OFFSET_WIDTH;
+        }
+        uint64_t j = virtualAddress >> (i * bits);
+        auto nextPage = ((page) << bits) | j;
+        page = nextPage;
+    }
+    return page;
+
+
+}
 
 uint64_t mapAddress(uint64_t virtualAddress) {
     auto offset_mask = (1 << OFFSET_WIDTH) - 1;
@@ -30,14 +49,19 @@ uint64_t mapAddress(uint64_t virtualAddress) {
             current_offset = (virtualAddress >> (OFFSET_WIDTH * i)) &
                              offset_mask;
         }
-        if (i == 0) return prev * PAGE_SIZE + current_offset;
+        if (i == 0) {
+            uint64_t pageIndex = calculatePageIndex(virtualAddress);
+//            std::cout << pageIndex << std::endl;
+            PMrestore(prev, pageIndex);
+            return prev * PAGE_SIZE + current_offset;
+        }
         PMread(prev * PAGE_SIZE + current_offset, &address);
         if (address == 0) // Page fault
         {
             // Define a bit mask to keep the first (number of bits - offset) bits
             uint16_t bitMask = (1 << (VIRTUAL_ADDRESS_WIDTH - OFFSET_WIDTH)) - 1;
             word_t f1 = findFrame(prev * PAGE_SIZE + current_offset, prev, prev * PAGE_SIZE,
-                                  virtualAddress & bitMask);
+                                  prev * PAGE_SIZE + current_offset);
             if (i > 1) {
                 for (int j = 0; j < PAGE_SIZE; j++) {
                     PMwrite(f1 * PAGE_SIZE + j, 0);
@@ -84,7 +108,7 @@ swapIn) {
             PMevict(frameIndex, pageToEvict);
         }
     }
-    PMrestore(frameIndex, pageIndex);
+//    PMrestore(frameIndex, pageIndex);
     return frameIndex;
 }
 
@@ -124,7 +148,7 @@ previousFrame, word_t fatherFrameIndex, uint64_t page, uint64_t swapIn,
             isAllZeros = false;
             // Update the page number
             auto nextPage = ((page) << bits) | j;
-            std::cout << "next " << nextPage << std::endl;
+//            std::cout << "next " << nextPage << std::endl;
             // Recursively call dfs for the next level
             auto nextAddress = dfs(currentFrame, depth + 1, maxFrameIndex,
                                    previousFrame, i * PAGE_SIZE + j, nextPage, swapIn,
@@ -148,13 +172,11 @@ previousFrame, word_t fatherFrameIndex, uint64_t page, uint64_t swapIn,
     return i;
 }
 
-void VMinitialize ()
-{
-  for (int i = 0; i < NUM_PAGES; i++)
-  {
-    PMwrite (i, 0);
+void VMinitialize() {
+    for (int i = 0; i < PAGE_SIZE; i++) {
+        PMwrite(i, 0);
 
-  }
+    }
 }
 
 int VMread(uint64_t virtualAddress, word_t *value) {
